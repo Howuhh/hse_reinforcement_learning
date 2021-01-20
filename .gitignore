@@ -1,0 +1,6 @@
+*.pdf
+.DS_Store
+.vscode
+.ipynb_checkpoints
+__pycache__
+todo.txt
