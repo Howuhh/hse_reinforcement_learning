@@ -1,19 +1,22 @@
+import os
 import gym
-import copy
 import random
 import numpy as np
 
-from collections import deque
+from utils import plot_learning_curve
 
 GAMMA = 0.98
-GRID_SIZE_X = 30
-GRID_SIZE_Y = 30
+GRID_SIZE_X = 30 # default 30
+GRID_SIZE_Y = 30 # default 30
+EPS = 0.1
 
 # Num    Observation               Min            Max
 # 0      Car Position              -1.2           0.6
 # 1      Car Velocity              -0.07          0.07
 # Simple discretization: map to [0, 1] then to {0, 1, .... ,(x_dim * y_dim) - 1}
 def transform_state(state):
+    assert len(state) == 2, "wrong state dim"
+    
     state = (np.array(state) + np.array((1.2, 0.07))) / np.array((1.8, 0.14))
     x = min(int(state[0] * GRID_SIZE_X), GRID_SIZE_X - 1)
     y = min(int(state[1] * GRID_SIZE_Y), GRID_SIZE_Y - 1)
@@ -21,18 +24,38 @@ def transform_state(state):
 
 
 class QLearning:
-    def __init__(self, state_dim, action_dim):
-        self.qlearning_estimate = np.zeros((state_dim, action_dim)) + 2.0
+    def __init__(self, state_dim, action_dim, alpha=0.1):
+        self.Q_table = np.zeros((state_dim, action_dim)) + 2.0
+        self.alpha = alpha
 
     def update(self, transition):
         state, action, next_state, reward, done = transition
-        pass
+        
+        if done:
+            self.Q_table[next_state, :] = 0
+        
+        self.Q_table[state, action] += self.alpha * (reward + GAMMA * np.max(self.Q_table[next_state]) - self.Q_table[state, action])
 
     def act(self, state):
-        return 0
+        return np.argmax(self.Q_table[state])
 
-    def save(self, path):
-        np.savez("agent.npz", self.qlearning_estimate)
+    def save(self, path=""):
+        np.savez(os.path.join(path, "q_agent.npz"), self.Q_table)
+
+      
+class SARSA:
+    def __init__(self, state_dim, action_dim, alpha=0.1):
+        self.Q_table = np.zeros((state_dim, action_dim)) + 2.0
+        self.alpha = alpha
+        
+    def update(self, transition):
+        pass
+    
+    def act(self, state):
+        pass
+    
+    def save(self, path=""):
+        np.savez(os.path.join(path, "sarsa_agent.npz"), self.Q_table)
 
 
 def evaluate_policy(agent, episodes=5):
@@ -45,43 +68,74 @@ def evaluate_policy(agent, episodes=5):
         total_reward = 0.0
         
         while not done:
-            state, reward, done, _ = env.step(agent.act(transform_state(state)))
+            action = agent.act(transform_state(state))
+            
+            state, reward, done, _ = env.step(action)
             total_reward += reward
         returns.append(total_reward)
     return returns
 
 
-if __name__ == "__main__":
+def train():
+    epochs = 20_000
+    eps = EPS
+    reduction = eps / epochs
+    
     env = gym.make("MountainCar-v0")
-    ql = QLearning(state_dim=GRID_SIZE_X*GRID_SIZE_Y, action_dim=3)
-    eps = 0.1
-    transitions = 4000000
-    trajectory = []
-    state = transform_state(env.reset())
-    for i in range(transitions):
-        total_reward = 0
-        steps = 0
+    Q = QLearning(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.5)
+    
+    env.seed(42)
+    random.seed(42)
+    np.random.seed(42)
+    
+    log = [[], [], []]
+    
+    total_transitions = 0
+    for epoch in range(epochs):
+        done, old_state = False, env.reset()
         
-        #Epsilon-greedy policy
-        if random.random() < eps:
-            action = env.action_space.sample()
-        else:
-            action = ql.act(transform_state(state))
+        trajectory = []
+        state = transform_state(old_state)
+        
+        while not done:
+            if random.random() < eps:
+                action = env.action_space.sample()
+            else:
+                action = Q.act(state)
+            
+            next_state, reward, done, _ = env.step(action)
+            
+            shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
+            
+            trajectory.append((state, action, transform_state(next_state), shaped_reward, done and next_state[0] > 0.5))
+            
+            state = transform_state(next_state)
+            old_state = next_state
+            total_transitions += 1
+                    
+        for transition in reversed(trajectory):
+            Q.update(transition)
+                
+        if epoch % 100 == 0:
+            rewards = evaluate_policy(Q, 10)
+            
+            print(f"Epoch {epoch} -- Total transitions {total_transitions} -- Reward {np.mean(rewards)} +- {np.std(rewards)} -- Eps {eps}") 
+            
+            log[0].append(total_transitions)
+            log[1].append(np.mean(rewards))
+            log[2].append(np.std(rewards))
+            
+        if eps > 0:
+            eps = eps - reduction
+            
+    Q.save()
+    
+    plot_learning_curve(*map(np.array, log), label="q-learning-40k_shaping")
 
-        next_state, reward, done, _ = env.step(action)
-        reward += abs(next_state[1]) / 0.07
-        next_state = transform_state(next_state)
-
-        trajectory.append((state, action, next_state, reward, done))
-        
-        if done:
-            for transition in reversed(trajectory):
-                ql.update(transition)
-            trajectory = []
-        
-        state = next_state if not done else transform_state(env.reset())
-        
-        if (i + 1) % (transitions//100) == 0:
-            rewards = evaluate_policy(ql, 5)
-            print(f"Step: {i+1}, Reward mean: {np.mean(rewards)}, Reward std: {np.std(rewards)}")
-            ql.save()
+if __name__ == "__main__":
+    # train()
+    agent = QLearning(30*30, 3, 0.1)
+    agent.Q_table = np.load("q_agent.npz")['arr_0']
+    
+    print(np.mean(evaluate_policy(agent)))
+    
