@@ -2,9 +2,8 @@ import matplotlib.pyplot as plt
 
 
 
-def plot_learning_curve(transitions, rewards, stds, label="q-learning"):
-    plt.figure(figsize=(12, 8))
-    
+def plot_learning_curve(transitions, rewards, stds, label):
+    # plt.figure(figsize=(12, 8))
     plt.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
     plt.ticklabel_format(useMathText=True)
     

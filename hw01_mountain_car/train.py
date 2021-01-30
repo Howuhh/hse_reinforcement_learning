@@ -3,7 +3,12 @@ import gym
 import random
 import numpy as np
 
-from utils import plot_learning_curve
+import matplotlib.pyplot as plt
+
+try:
+    from utils import plot_learning_curve
+except ModuleNotFoundError:
+    from .utils import plot_learning_curve
 
 GAMMA = 0.98
 GRID_SIZE_X = 30 # default 30
@@ -44,15 +49,27 @@ class QLearning:
 
       
 class SARSA:
-    def __init__(self, state_dim, action_dim, alpha=0.1):
+    def __init__(self, state_dim, action_dim, alpha=0.1, eps=0.1):
         self.Q_table = np.zeros((state_dim, action_dim)) + 2.0
         self.alpha = alpha
+        self.eps = eps
         
-    def update(self, transition):
-        pass
+    def update(self, transition):    
+        state, action, next_state, reward, done = transition
+        
+        next_action = self.act(next_state)
+        
+        if done:
+            self.Q_table[next_state, :] = 0
+            
+        self.Q_table[state, action] += self.alpha * (reward + GAMMA * self.Q_table[next_state, next_action] - self.Q_table[state, action])
     
     def act(self, state):
-        pass
+        if random.random() < self.eps:
+            action = np.random.choice(range(self.Q_table.shape[-1]))
+        else:
+            action = np.argmax(self.Q_table[state])
+        return action
     
     def save(self, path=""):
         np.savez(os.path.join(path, "sarsa_agent.npz"), self.Q_table)
@@ -76,13 +93,67 @@ def evaluate_policy(agent, episodes=5):
     return returns
 
 
-def train():
-    epochs = 20_000
+def train_sarsa():
+    epochs = 30_000
+    
+    env = gym.make("MountainCar-v0")
+    sarsa = SARSA(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.1, EPS)
+    
+    reduction = EPS / epochs
+    
+    env.seed(42)
+    random.seed(42)
+    np.random.seed(42)
+    
+    log = [[], [], []]
+    
+    total_transitions = 0
+    for epoch in range(epochs):
+        done, old_state = False, env.reset()
+        
+        trajectory = []
+        state = transform_state(old_state)
+        
+        while not done:
+            action = sarsa.act(state)
+            
+            next_state, reward, done, _ = env.step(action)
+            
+            shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
+            
+            trajectory.append((state, action, transform_state(next_state), shaped_reward, done and next_state[0] > 0.5))
+            
+            state = transform_state(next_state)
+            old_state = next_state
+            total_transitions += 1
+                    
+        for transition in reversed(trajectory):
+            sarsa.update(transition)
+                
+        if epoch % 100 == 0:
+            rewards = evaluate_policy(sarsa, 10)
+            
+            print(f"Epoch {epoch} -- Total transitions {total_transitions} -- Reward {np.mean(rewards)} +- {np.std(rewards)}") 
+            
+            log[0].append(total_transitions)
+            log[1].append(np.mean(rewards))
+            log[2].append(np.std(rewards))
+            
+        if sarsa.eps > 0:
+            sarsa.eps = sarsa.eps - reduction
+            
+    sarsa.save()
+    
+    plot_learning_curve(*map(np.array, log), label="sarsa")
+    
+
+def train_q():
+    epochs = 30_000
     eps = EPS
     reduction = eps / epochs
     
     env = gym.make("MountainCar-v0")
-    Q = QLearning(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.5)
+    Q = QLearning(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.1)
     
     env.seed(42)
     random.seed(42)
@@ -130,12 +201,15 @@ def train():
             
     Q.save()
     
-    plot_learning_curve(*map(np.array, log), label="q-learning-40k_shaping")
+    plot_learning_curve(*map(np.array, log), label="q-learning")
+
 
 if __name__ == "__main__":
-    # train()
-    agent = QLearning(30*30, 3, 0.1)
-    agent.Q_table = np.load("q_agent.npz")['arr_0']
+    plt.figure(figsize=(12, 8))
+    train_sarsa()
+    train_q()
+    # agent = QLearning(30*30, 3, 0.1)
+    # agent.Q_table = np.load("q_agent.npz")['arr_0']
     
-    print(np.mean(evaluate_policy(agent)))
+    # print(np.mean(evaluate_policy(agent)))
     
