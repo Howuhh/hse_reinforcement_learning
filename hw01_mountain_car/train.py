@@ -10,10 +10,13 @@ try:
 except ModuleNotFoundError:
     from .utils import plot_learning_curve
 
-GAMMA = 0.98
+GAMMA = 0.7 # default 0.98
 GRID_SIZE_X = 30 # default 30
 GRID_SIZE_Y = 30 # default 30
 EPS = 0.1
+SEED = 42
+
+# TODO: how to set end seed properly??????????
 
 # Num    Observation               Min            Max
 # 0      Car Position              -1.2           0.6
@@ -75,12 +78,17 @@ class SARSA:
         np.savez(os.path.join(path, "sarsa_agent.npz"), self.Q_table)
 
 
-def evaluate_policy(agent, episodes=5):
+def evaluate_policy(agent, episodes=5, seed=None):
     env = gym.make("MountainCar-v0")
     
+    if seed is not None:
+        env.seed(seed)
+        env.action_space.seed(SEED)
+
     returns = []
     for _ in range(episodes):
         done = False
+    
         state = env.reset()
         total_reward = 0.0
         
@@ -94,21 +102,23 @@ def evaluate_policy(agent, episodes=5):
 
 
 def train_sarsa():
-    epochs = 30_000
+    epochs = 15_000
     
     env = gym.make("MountainCar-v0")
-    sarsa = SARSA(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.1, EPS)
+    sarsa = SARSA(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.2, EPS)
     
     reduction = EPS / epochs
     
-    env.seed(42)
-    random.seed(42)
-    np.random.seed(42)
+    random.seed(SEED)
+    np.random.seed(SEED)
+    
+    env.seed(SEED)
+    env.action_space.seed(SEED)
     
     log = [[], [], []]
     
     total_transitions = 0
-    for epoch in range(epochs):
+    for epoch in range(epochs):        
         done, old_state = False, env.reset()
         
         trajectory = []
@@ -119,7 +129,8 @@ def train_sarsa():
             
             next_state, reward, done, _ = env.step(action)
             
-            shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
+            # shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
+            shaped_reward = reward + abs(next_state[1]) / 0.07
             
             trajectory.append((state, action, transform_state(next_state), shaped_reward, done and next_state[0] > 0.5))
             
@@ -131,7 +142,7 @@ def train_sarsa():
             sarsa.update(transition)
                 
         if epoch % 100 == 0:
-            rewards = evaluate_policy(sarsa, 10)
+            rewards = evaluate_policy(sarsa, 10, seed=SEED)
             
             print(f"Epoch {epoch} -- Total transitions {total_transitions} -- Reward {np.mean(rewards)} +- {np.std(rewards)}") 
             
@@ -148,21 +159,23 @@ def train_sarsa():
     
 
 def train_q():
-    epochs = 30_000
+    epochs = 15_000
     eps = EPS
     reduction = eps / epochs
     
     env = gym.make("MountainCar-v0")
-    Q = QLearning(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.1)
+    Q = QLearning(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.2)
     
-    env.seed(42)
-    random.seed(42)
-    np.random.seed(42)
+    random.seed(SEED)
+    np.random.seed(SEED)
+    
+    env.seed(SEED)
+    env.action_space.seed(SEED)
     
     log = [[], [], []]
     
     total_transitions = 0
-    for epoch in range(epochs):
+    for epoch in range(epochs):        
         done, old_state = False, env.reset()
         
         trajectory = []
@@ -176,7 +189,8 @@ def train_q():
             
             next_state, reward, done, _ = env.step(action)
             
-            shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
+            # shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
+            shaped_reward = reward + abs(next_state[1]) / 0.07
             
             trajectory.append((state, action, transform_state(next_state), shaped_reward, done and next_state[0] > 0.5))
             
@@ -188,7 +202,7 @@ def train_q():
             Q.update(transition)
                 
         if epoch % 100 == 0:
-            rewards = evaluate_policy(Q, 10)
+            rewards = evaluate_policy(Q, 10, seed=SEED)
             
             print(f"Epoch {epoch} -- Total transitions {total_transitions} -- Reward {np.mean(rewards)} +- {np.std(rewards)} -- Eps {eps}") 
             
