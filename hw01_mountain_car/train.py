@@ -10,13 +10,11 @@ try:
 except ModuleNotFoundError:
     from .utils import plot_learning_curve
 
-GAMMA = 0.7 # default 0.98
+GAMMA = 0.98 # default 0.98
 GRID_SIZE_X = 30 # default 30
 GRID_SIZE_Y = 30 # default 30
 EPS = 0.1
 SEED = 42
-
-# TODO: how to set end seed properly??????????
 
 # Num    Observation               Min            Max
 # 0      Car Position              -1.2           0.6
@@ -40,7 +38,7 @@ class QLearning:
         state, action, next_state, reward, done = transition
         
         if done:
-            self.Q_table[next_state, :] = 0
+            self.Q_table[next_state] = 0
         
         self.Q_table[state, action] += self.alpha * (reward + GAMMA * np.max(self.Q_table[next_state]) - self.Q_table[state, action])
 
@@ -105,7 +103,7 @@ def train_sarsa():
     epochs = 15_000
     
     env = gym.make("MountainCar-v0")
-    sarsa = SARSA(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.2, EPS)
+    sarsa = SARSA(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.1, EPS)
     
     reduction = EPS / epochs
     
@@ -129,10 +127,10 @@ def train_sarsa():
             
             next_state, reward, done, _ = env.step(action)
             
-            # shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
-            shaped_reward = reward + abs(next_state[1]) / 0.07
+            shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
+            # shaped_reward = reward + abs(next_state[1]) / 0.07
             
-            trajectory.append((state, action, transform_state(next_state), shaped_reward, done and next_state[0] > 0.5))
+            trajectory.append((state, action, transform_state(next_state), shaped_reward, next_state[0] > 0.5))
             
             state = transform_state(next_state)
             old_state = next_state
@@ -159,12 +157,12 @@ def train_sarsa():
     
 
 def train_q():
-    epochs = 15_000
+    epochs = 50_000
     eps = EPS
-    reduction = eps / epochs
+    # reduction = eps / epochs
     
     env = gym.make("MountainCar-v0")
-    Q = QLearning(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.2)
+    Q = QLearning(GRID_SIZE_X * GRID_SIZE_Y, 3, 0.15)
     
     random.seed(SEED)
     np.random.seed(SEED)
@@ -175,6 +173,7 @@ def train_q():
     log = [[], [], []]
     
     total_transitions = 0
+    
     for epoch in range(epochs):        
         done, old_state = False, env.reset()
         
@@ -192,7 +191,7 @@ def train_q():
             # shaped_reward = reward + 300 * (GAMMA * abs(next_state[1]) - abs(old_state[1]))
             shaped_reward = reward + abs(next_state[1]) / 0.07
             
-            trajectory.append((state, action, transform_state(next_state), shaped_reward, done and next_state[0] > 0.5))
+            trajectory.append((state, action, transform_state(next_state), shaped_reward, next_state[0] > 0.5))
             
             state = transform_state(next_state)
             old_state = next_state
@@ -202,16 +201,16 @@ def train_q():
             Q.update(transition)
                 
         if epoch % 100 == 0:
-            rewards = evaluate_policy(Q, 10, seed=SEED)
+            rewards = evaluate_policy(Q, 5, seed=SEED)
             
-            print(f"Epoch {epoch} -- Total transitions {total_transitions} -- Reward {np.mean(rewards)} +- {np.std(rewards)} -- Eps {eps}") 
+            print(f"Epoch {epoch} -- Total transitions {total_transitions} -- Reward {np.mean(rewards)} +- {np.std(rewards)}") # -- Eps {eps}
             
             log[0].append(total_transitions)
             log[1].append(np.mean(rewards))
             log[2].append(np.std(rewards))
             
-        if eps > 0:
-            eps = eps - reduction
+        # if eps > 0:
+            # eps = eps - reduction
             
     Q.save()
     
@@ -220,7 +219,7 @@ def train_q():
 
 if __name__ == "__main__":
     plt.figure(figsize=(12, 8))
-    train_sarsa()
+    # train_sarsa()
     train_q()
     # agent = QLearning(30*30, 3, 0.1)
     # agent.Q_table = np.load("q_agent.npz")['arr_0']
