@@ -1,12 +1,15 @@
-from gym import make
-import numpy as np
 import torch
+import copy
+import random
+
+import numpy as np
+
+from gym import make
+from collections import deque
+
 from torch import nn
 from torch.nn import functional as F
 from torch.optim import Adam
-from collections import deque
-import random
-import copy
 
 GAMMA = 0.99
 INITIAL_STEPS = 1024
@@ -76,6 +79,7 @@ def evaluate_policy(agent, episodes=5):
         returns.append(total_reward)
     return returns
 
+
 if __name__ == "__main__":
     env = make("LunarLander-v2")
     dqn = DQN(state_dim=env.observation_space.shape[0], action_dim=env.action_space.n)
@@ -91,7 +95,6 @@ if __name__ == "__main__":
         
         state = next_state if not done else env.reset()
         
-    
     for i in range(TRANSITIONS):
         steps = 0
         
