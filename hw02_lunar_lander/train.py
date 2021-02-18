@@ -27,16 +27,39 @@ class ReplayBuffer:
         return list(zip(*batch))
     
 
-class DQN:
-    def __init__(self, state_dim, action_dim, gamma, lr, double_q=False):
-        self.model = nn.Sequential(
-            nn.Linear(state_dim, 32),
-            nn.ReLU(),
-            nn.Linear(32, 32),
-            nn.ReLU(),
-            nn.Linear(32, action_dim)
-        ).to(device)
+class DuelingQ(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super().__init__()
         
+        self.linear1 = nn.Linear(state_dim, 32)
+        self.linear2 = nn.Linear(32, 32)
+        
+        self.V = nn.Linear(32, 1)
+        self.A = nn.Linear(32, action_dim)
+        
+    def forward(self, state):
+        out = F.relu(self.linear1(state))
+        out = F.relu(self.linear2(out))
+        V, A = self.V(out), self.A(out)
+        
+        return V + (A - torch.mean(A, dim=-1, keepdims=True))
+
+
+class DQN:
+    def __init__(self, state_dim, action_dim, gamma, lr, double_q=False, dueling_q=False):
+        
+        if dueling_q:
+            self.model = DuelingQ(state_dim, action_dim)
+        else:
+            self.model = nn.Sequential(
+                nn.Linear(state_dim, 32),
+                nn.ReLU(),
+                nn.Linear(32, 32),
+                nn.ReLU(),
+                nn.Linear(32, action_dim)
+            )
+        
+        self.model.to(device)
         self.target_model = deepcopy(self.model).to(device)
         
         self.gamma = gamma
@@ -103,7 +126,8 @@ def evaluate_policy(agent, episodes=5):
     return np.mean(returns), np.std(returns)
 
 
-def train(model, timesteps, start_train, batch_size, buffer_size, update_policy, update_target, eps_max=0.1, eps_min=0.0, test_every=5000):
+def train(model, timesteps=200_000, start_train=1000, batch_size=128, buffer_size=int(1e5), 
+          update_policy=1, update_target=1000, eps_max=0.1, eps_min=0.0, test_every=5000):
     env = gym.make("LunarLander-v2")
     
     print("Training on: ", device)
@@ -163,10 +187,10 @@ def train(model, timesteps, start_train, batch_size, buffer_size, update_policy,
                 rewards_total.append(mean)
                 stds_total.append(std)
     
-    return rewards_total, stds_total
+    return np.array(rewards_total), np.array(stds_total)
 
 
 if __name__ == "__main__":
-    model = DQN(8, 4, gamma=0.99, lr=1e-3, double_q=True)
+    model = DQN(8, 4, gamma=0.99, lr=1e-3, double_q=False, dueling_q=True)
     train(model, timesteps=200_000, start_train=10_000, update_policy=1, update_target=1000, batch_size=128, buffer_size=100_000, test_every=5000, eps_max=0.2)
  
