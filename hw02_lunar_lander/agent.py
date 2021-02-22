@@ -3,6 +3,8 @@ import numpy as np
 import os
 import torch
 
+from train import DuelingQ  # import for torch.load
+
 
 class Agent:
     def __init__(self):
