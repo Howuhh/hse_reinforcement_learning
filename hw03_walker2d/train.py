@@ -247,7 +247,7 @@ def train():
                 ppo.save(name="best_agent")
             ppo.save()
    
-    return means, stds, iters
+    return np.array(means), np.array(stds), np.array(iters)
 
 if __name__ == "__main__":
     means, stds, iters = train()
