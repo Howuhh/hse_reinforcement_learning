@@ -217,7 +217,7 @@ class SoftActorCritic:
         return action
     
     def save(self, name):
-        torch.save(self.actor, f"{name}.pkl")
+        torch.save(self.actor.state_dict(), f"{name}.pt")
 
 
 def evaluate_policy(env_name, agent, seed, episodes=5):
