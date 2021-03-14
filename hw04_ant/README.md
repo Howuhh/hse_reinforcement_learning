@@ -13,4 +13,8 @@ Best reward under 1M steps:
 
 `Step: 830001, Reward mean: 2229.4846282514927, Reward std: 39.55371539623023, Alpha: 0.02095917984843254`
 
+Last:
+
+`Step: 1260001, Reward mean: 2483.6213500917083, Reward std: 45.82071055152405, Alpha: 0.03042907826602459`
+
 ![test_run](best_agent.gif)
