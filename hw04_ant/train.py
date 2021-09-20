@@ -121,8 +121,6 @@ class SoftActorCritic:
         self.target_entropy = -float(action_size)
         
         self.log_alpha = torch.tensor([self.init_alpha], dtype=torch.float32, device=DEVICE, requires_grad=True)
-
-        # self.log_alpha = torch.zeros(1, device=DEVICE, requires_grad=True)
         self.alpha_optimizer = optim.Adam([self.log_alpha], lr=alpha_lr)
         self.alpha = self.log_alpha.exp()
 
@@ -134,7 +132,7 @@ class SoftActorCritic:
         with torch.no_grad():
             action, action_log_prob = self.actor(state, return_logprob=True)
 
-        loss = (-self.alpha * (action_log_prob + self.target_entropy)).mean()
+        loss = (-self.log_alpha * (action_log_prob + self.target_entropy)).mean()
 
         return loss
             
